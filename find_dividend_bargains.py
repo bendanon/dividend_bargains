@@ -1,7 +1,7 @@
 import requests
 import argparse
 
-stocks = ['IBM/IBM',
+watchlist = ['IBM/IBM',
           'CSCO/Cisco',
           'T/AT-T',
           'AAPL/Apple',
@@ -13,11 +13,66 @@ stocks = ['IBM/IBM',
           'QCOM/Qualcomm',
           'ADP/ADP',
           'VZ/Verizon',
-          'HPQ/hp']
+          'HPQ/hp',
+          'NTAP/NetApp',
+          'JNPR/Juniper',
+          'STX/Seagate',
+          'PEP/PepsiCo',
+          'PG/ProcterGamble',
+          'MMM/3M',
+          'TROW/TRowePriceGroup',
+          'CL/Colgate-Palmolive',
+          'KMB/KimberlyClarkCorp',
+          'CLX/CloroxCo',
+          'PFE/Pfizer',
+          'GILD/GileadSciences',
+          'JNJ/JohnsonJohnson',
+          'KO/CocaCola',
+          'BK/BankofNewYorkMellon',
+          'MTB/MnTBank',
+          'TRV/TravelersCompanies',
+          'SYF/SynchronyFinancial',
+          'PNC/PNCFinancial',
+          'COP/ConocoPhillips',
+          'KEY/KeyCorp',
+          'RF/RegionsFinancial',
+          'TSN/TysonFoods',
+          'FITB/FifthThirdBancorp',
+          'PRU/PrudentialFin',
+          'PAYX/Paychex',
+          'NUE/NucorCorp',
+          'MRK/Merck',
+          'K/Kellogg',
+          'GIS/GeneralMills',
+          'CAH/CardinalHealthInc',
+          'BNS/BankofNovaScotia']
 
+small_watchlist = ['BNS/BankofNovaScotia', 'IBM/IBM', 'STX/Seagate', 'INTC/Intel',
+                    'CSCO/Cisco', 'PFE/Pfizer', 'GILD/Gilead', 'NTAP/NetApp',
+                    'CAH/CardinalHealthInc', 'PRU/PrudentialFin', 'MET/MetLife']
+
+aristocrats = ['CARR','AFL','BEN','PBCT','GD','TROW','ABBV','ADM','LOW','ATO','CAH','MDT','WBA','ALB','T','AOS','CB',
+               'ED','TGT','AMCR','BDX','EXPD','ESS','HRL','JNJ','MMM','PPG','ROP','ABT','ADP','CAT','LEG','PNR','SHW',
+               'SWK','CINF','DOV','FRT','NUE','OTIS','PG','XOM','APD','GPC','KMB','MKC','RTX','SPGI','WMT','CTAS','ITW',
+               'CL','CLX','CVX','EMR','GWW','O','PEP','ROST','SYY','ECL','KO','MCD','VFC']
+
+warren_buffet = ['OXY/OccidentalPetroleum', 'KHC/Kraft Heinz', 'GM/GeneralMotors', 'SU/Suncor', 'WFC/WellsFargo',
+                 'STOR/STORECapital', 'PSX/Phillips66', 'UPS/UnitedParcelService', 'KO/CocaCola',
+                 'QSR/RestaurantBrands', 'PNC/PNCFinancialServices', 'USB/USBancorp', 'JPM/JPMorganChase',
+                 'JNJ/JohnsonJohnson', 'DAL/DeltaAirlines', 'BK/BankofNewYorkMellon', 'MTB/MnTBank',
+                 'PG/ProcternGamble', 'SYF/SynchronyFinancial', 'TRV/TravelersCompanies', 'GS/GoldmanSachs',
+                 'BAC/BankofAmerica']
+
+macrotrends_top_div = ['CTL/CenturyLink', 'SPG/SimonProperty', 'CQP/CheniereEnergey', 'PPL/PPL', 'KEY/KeyCorp',
+                    'LYB/LyondellBasell', 'CFG/CitizensFinancial', 'RF/RegionsFinancial', 'PFG', 'FITB', 'EIX', 'OMC',
+                    'COP', 'SO', 'MET', 'TFC', 'BXP', 'EQR', 'PNC', 'EXC', 'WELL', 'C', 'EVRG', 'ETR', 'PEG', 'AGR',
+                    'NUE', 'AEP', 'HAS', 'SRE', 'NTRS', 'K', 'DTE', 'CVS', 'VIAC', 'EMN', 'HIG', 'PAYX', 'GIS', 'AMTD',
+                    'DFS', 'STT', 'ADM', 'SJM', 'VIACA', 'CPB', 'MXIM', 'MRK', 'LNT', 'WHR', 'AMP', 'TSN', 'MS', 'CAT',
+                    'CMS', 'AMGN', 'WEC', 'BLK', 'AEE', 'LMT', 'DRE', 'CMI', 'IFF', 'XEL', 'ATO', 'CAG', 'ALL']
 
 macrotrends_url = 'https://www.macrotrends.net/stocks/charts/'
 gurufocus_url = 'https://www.gurufocus.com/term/'
+yahoo_url = 'https://finance.yahoo.com/quote/'
 
 
 def mt_extract_value(page, marker):
@@ -37,7 +92,12 @@ def mt_extract_value_table(page, marker, column, row):
 
 
 def gf_extract_headline_rank(page):
-    return page.text.split(" (As of")[0].split(' ')[-1]
+    val = page.text.split(" (As of")[0].split(' ')[-1]
+    try:
+        f = float(val)
+    except ValueError:
+        val = 0
+    return val
 
 
 def get_altman_zscore(stock):
@@ -51,7 +111,7 @@ def get_altman_zscore(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'zscore/' + stock.split('/')[0] + '/')
+    page = requests.get(gurufocus_url + 'zscore/' + get_symbol(stock) + '/')
     return gf_extract_headline_rank(page)
 
 
@@ -66,7 +126,7 @@ def get_beneish_mscore(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'mscore/' + stock.split('/')[0] + '/')
+    page = requests.get(gurufocus_url + 'mscore/' + get_symbol(stock) + '/')
     return gf_extract_headline_rank(page)
 
 
@@ -77,7 +137,7 @@ def get_piotroski_fscore(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'fscore/' + stock.split('/')[0] + '/')
+    page = requests.get(gurufocus_url + 'fscore/' + get_symbol(stock) + '/')
     return gf_extract_headline_rank(page)
 
 
@@ -98,44 +158,48 @@ def get_profitability_rank(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'rank_profitability/' + stock.split('/')[0] + '/')
+    page = requests.get(gurufocus_url + 'rank_profitability/' + get_symbol(stock) + '/')
     return gf_extract_headline_rank(page)
 
 
 def get_pe(stock):
-    page = requests.get(macrotrends_url + stock + '/pe-ratio')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
     return mt_extract_value(page, 'PE ratio as of')
 
 
 def get_mkt_cap(stock):
-    page = requests.get(macrotrends_url + stock + '/market-cap')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/market-cap')
     return mt_extract_value(page, 'market cap as of')
 
 
 def get_pfcf(stock):
-    page = requests.get(macrotrends_url + stock + '/price-fcf')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
     return mt_extract_value_table(page, 'Price to FCF Ratio', 4, 1)
 
 
 def get_discount(stock):
-    page = requests.get(macrotrends_url + stock + '/stock-price-history')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/stock-price-history')
     latest = mt_extract_value(page, 'The latest')
     average = mt_extract_value(page, 'The average')
     return round((1 - float(latest) / float(average)) * 100, 3)
 
 
 def get_dividend(stock):
-    page = requests.get(macrotrends_url + stock + '/dividend-yield-history')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
     return mt_extract_value(page, 'The current dividend yield').split('%')[0]
 
 
+def get_dividend_safety(stock):
+    return 0
+
+
 def get_profit_margin(stock):
-    page = requests.get(macrotrends_url + stock + '/profit-margins')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/profit-margins')
     return mt_extract_value(page, 'net profit margin as of').split('%')[0]
 
 
 def get_avg_rev_growth(stock):
-    page = requests.get(macrotrends_url + stock + '/revenue')
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/revenue')
     num_of_years = 5
     growth_sum = 0
     curr = 0
@@ -146,25 +210,93 @@ def get_avg_rev_growth(stock):
         if prev:
             growth_sum += float((prev - curr) / prev)
 
-    return round(growth_sum / (num_of_years - 1), 3)
+    return str(round(growth_sum / (num_of_years - 1), 3) * 100) + '%'
 
 
 def get_name(stock):
-    return stock.split('/')[1]
+    split = stock.split('/')
+    if len(split) > 1:
+        return split[1]
+    else:
+        return stock
+
+
+def get_symbol(stock):
+    split = stock.split('/')
+    if len(split) > 1:
+        return split[0]
+    else:
+        return stock
+
+
+def get_payout_ratios(stock):
+    """
+    payout_fcf (a more accurate way to look at payout ration) should be below 70%
+    payout_eps (the traditional payout ratio) should be below 60%
+    :param stock:
+    :return:
+    """
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
+    fcf = float(mt_extract_value_table(page, 'TTM FCF per Share', 3, 2).split('$')[1])
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
+    eps = float(mt_extract_value_table(page, 'TTM Net EPS', 3, 2).split('$')[1])
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
+    payout = float(mt_extract_value(page, 'TTM dividend payout').split('$')[1])
+    payout_fcf = round(100*(payout / fcf))
+    payout_eps = round(100*(payout / eps))
+    return str(payout_fcf) + '%,' + str(payout_eps) + '%'
+
+
+def get_rsi(stock):
+    """
+    An asset is usually considered overbought when the RSI is above 70% and oversold when it is below 30%.
+    :param stock:
+    :return:
+    """
+    page = requests.get('https://www.stockrsi.com/' + get_symbol(stock).lower() + '/')
+    return page.text.split('RSI:')[1].split('</td></tr>')[0].split('>')[-1]
+
+
+def get_expected_growth(stock):
+    page = requests.get(yahoo_url + get_symbol(stock) + '/analysis')
+    return page.text.split('per annum')[1].split('%')[0].split('>')[3] + '%'
+
+
+def get_past_growth(stock):
+    page = requests.get(yahoo_url + get_symbol(stock) + '/analysis')
+    return page.text.split('per annum')[2].split('%')[0].split('>')[3] + '%'
+
+
+def get_esg_risk(stock):
+    """
+    Sustainalytics’ ESG Risk Ratings assess the degree to which a company’s enterprise business value is at risk driven
+    by environmental, social and governance issues. The rating employs a two-dimensional framework that combines an
+    assessment of a company’s exposure to industry-specific material ESG issues with an assessment of how well the
+    company is managing those issues.
+    The final ESG Risk Ratings scores are a measure of unmanaged risk on an absolute scale of 0-100, with a lower score
+    signaling less unmanaged ESG Risk.
+    :param stock:
+    :return:
+    """
+    page = requests.get(yahoo_url + get_symbol(stock) + '/sustainability')
+    return page.text.split('Total ESG Risk score')[1].split('</div>')[1].split('>')[-1]
 
 
 fields = {'stock': get_name,
+          'mkt_cap': get_mkt_cap,
           'discount': get_discount,
           'dividend': get_dividend,
           'P/E': get_pe,
           'P/FCF': get_pfcf,
-          'avg_annual_growth': get_avg_rev_growth,
-          'net_profit_margin': get_profit_margin,
-          'market_cap': get_mkt_cap,
-          'bankruptcy_risk(>2.6)': get_altman_zscore,
-          'manipulator_mscore(<-2.22)': get_beneish_mscore,
-          'financial_strength(>8)': get_piotroski_fscore,
-          'profitability_rank(>7)': get_profitability_rank}
+          'Div/FCF,Div/EPS': get_payout_ratios,
+          'bankruptcy(>2.6)': get_altman_zscore,
+          'manipulator(<-2.22)': get_beneish_mscore,
+          'ESG_risk': get_esg_risk,
+          'profit_margin': get_profit_margin,
+          'past_growth': get_past_growth,
+          'exp_growth': get_expected_growth,
+          'fin_strength(>8)': get_piotroski_fscore,
+          'profitability(>7)': get_profitability_rank}
 
 
 def scrape(stock_names):
@@ -173,10 +305,17 @@ def scrape(stock_names):
     for stock in stock_names:
         print("Scraping {}...".format(stock))
         row = {}
+        failed_scraping = False
         for field in fields.keys():
-            row[field] = fields[field](stock)
 
-        data.append(row)
+            try:
+                row[field] = fields[field](stock)
+            except Exception:
+                print('Failed to scrape field ' + field + 'for stock' + stock)
+                failed_scraping = True
+
+        if not failed_scraping:
+            data.append(row)
 
     return reversed(sorted(data, key=lambda i: i['discount']))
 
@@ -197,9 +336,13 @@ def printTable(myDict, colList=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("stocks", help="e.g. AVGO/Broadcom,CSCO/Cisco...")
+    parser.add_argument("stocks", help="e.g. watchlist / aristocrats / buffet / AVGO/Broadcom,CSCO/Cisco...")
     args = parser.parse_args()
-    if args:
-        printTable(scrape(args.stocks.split(',')), fields)
+    if args.stocks == 'aristocrats':
+        printTable(scrape(aristocrats), fields)
+    elif args.stocks == 'watchlist':
+        printTable(scrape(watchlist), fields)
+    elif args.stocks == 'buffet':
+        printTable(scrape(warren_buffet), fields)
     else:
-        printTable(scrape(stocks), fields)
+        printTable(scrape(args.stocks.split(',')), fields)
