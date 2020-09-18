@@ -1,5 +1,7 @@
 import requests
 import argparse
+from multiprocessing.dummy import Pool as ThreadPool
+
 
 watchlist = ['IBM/IBM',
           'CSCO/Cisco',
@@ -299,23 +301,25 @@ fields = {'stock': get_name,
           'profitability(>7)': get_profitability_rank}
 
 
+def scrape_stock(stock):
+    print("Scraping {}...".format(stock))
+    row = {}
+    for field in fields.keys():
+
+        try:
+            row[field] = fields[field](stock)
+        except Exception:
+            print('Failed to scrape field ' + field + 'for stock' + stock)
+            row[field] = 0
+
+    print('Finished {}'.format(stock))
+    return row
+
+
 def scrape(stock_names):
-    data = []
 
-    for stock in stock_names:
-        print("Scraping {}...".format(stock))
-        row = {}
-        failed_scraping = False
-        for field in fields.keys():
-
-            try:
-                row[field] = fields[field](stock)
-            except Exception:
-                print('Failed to scrape field ' + field + 'for stock' + stock)
-                failed_scraping = True
-
-        if not failed_scraping:
-            data.append(row)
+    pool = ThreadPool(len(stock_names))
+    data = pool.map(scrape_stock, stock_names)
 
     return reversed(sorted(data, key=lambda i: i['discount']))
 
