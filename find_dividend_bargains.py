@@ -1,7 +1,12 @@
 import requests
 import argparse
 from multiprocessing.dummy import Pool as ThreadPool
+import json
+import os
+import time
 
+stocks_dir = 'stocks/'
+stock_file_format = stocks_dir + '{}.txt'
 
 watchlist = ['IBM/IBM',
           'CSCO/Cisco',
@@ -301,9 +306,36 @@ fields = {'stock': get_name,
           'profitability(>7)': get_profitability_rank}
 
 
+def read_from_local_storage(stock):
+    stock_file_name = stock_file_format.format(get_symbol(stock))
+    row = {}
+
+    try:
+        if (time.time() - os.path.getmtime(stock_file_name)) / 3600 > 24:
+            return row
+
+        with open(stock_file_name, 'r') as f:
+            row = json.loads(f.readline())
+    except Exception:
+        pass
+
+    return row
+
+
+def write_to_local_storage(stock, row):
+    with open(stock_file_format.format(get_symbol(stock)), 'w+') as f:
+        f.write(json.dumps(row))
+        f.flush()
+
+
 def scrape_stock(stock):
     print("Scraping {}...".format(stock))
-    row = {}
+
+    row = read_from_local_storage(stock)
+
+    if len(row) > 0:
+        return row
+
     for field in fields.keys():
 
         try:
@@ -313,10 +345,17 @@ def scrape_stock(stock):
             row[field] = 0
 
     print('Finished {}'.format(stock))
+    write_to_local_storage(stock, row)
+
     return row
 
 
 def scrape(stock_names):
+
+    try:
+        os.mkdir(stocks_dir)
+    except OSError:
+        pass
 
     pool = ThreadPool(len(stock_names))
     data = pool.map(scrape_stock, stock_names)
