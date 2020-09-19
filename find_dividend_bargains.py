@@ -4,6 +4,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 import json
 import os
 import time
+import csv
 
 stocks_dir = 'stocks/'
 stock_file_format = stocks_dir + '{}.txt'
@@ -101,7 +102,7 @@ def mt_extract_value_table(page, marker, column, row):
 def gf_extract_headline_rank(page):
     val = page.text.split(" (As of")[0].split(' ')[-1]
     try:
-        f = float(val)
+        float(val)
     except ValueError:
         val = 0
     return val
@@ -169,6 +170,10 @@ def get_profitability_rank(stock):
     return gf_extract_headline_rank(page)
 
 
+def get_dividend_growth(stock):
+    pass
+
+
 def get_pe(stock):
     page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
     return mt_extract_value(page, 'PE ratio as of')
@@ -196,8 +201,9 @@ def get_dividend(stock):
     return mt_extract_value(page, 'The current dividend yield').split('%')[0]
 
 
-def get_dividend_safety(stock):
-    return 0
+def get_dividend_history(stock):
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
+    return page.text.split(' - ')[1].split(' ')[0]
 
 
 def get_profit_margin(stock):
@@ -236,22 +242,35 @@ def get_symbol(stock):
         return stock
 
 
-def get_payout_ratios(stock):
+def get_ttm_payout(stock):
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
+    return float(mt_extract_value(page, 'TTM dividend payout').split('$')[1])
+
+
+def get_div_over_eps(stock):
     """
-    payout_fcf (a more accurate way to look at payout ration) should be below 70%
     payout_eps (the traditional payout ratio) should be below 60%
     :param stock:
     :return:
     """
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
-    fcf = float(mt_extract_value_table(page, 'TTM FCF per Share', 3, 2).split('$')[1])
     page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
     eps = float(mt_extract_value_table(page, 'TTM Net EPS', 3, 2).split('$')[1])
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
-    payout = float(mt_extract_value(page, 'TTM dividend payout').split('$')[1])
-    payout_fcf = round(100*(payout / fcf))
+    payout = get_ttm_payout(stock)
     payout_eps = round(100*(payout / eps))
-    return str(payout_fcf) + '%,' + str(payout_eps) + '%'
+    return str(payout_eps) + '%'
+
+
+def get_div_over_fcf(stock):
+    """
+        payout_fcf (a more accurate way to look at payout ration) should be below 70%
+        :param stock:
+        :return:
+        """
+    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
+    fcf = float(mt_extract_value_table(page, 'TTM FCF per Share', 3, 2).split('$')[1])
+    payout = get_ttm_payout(stock)
+    payout_fcf = round(100 * (payout / fcf))
+    return str(payout_fcf) + '%'
 
 
 def get_rsi(stock):
@@ -290,12 +309,13 @@ def get_esg_risk(stock):
 
 
 fields = {'stock': get_name,
-          'mkt_cap': get_mkt_cap,
           'discount': get_discount,
           'dividend': get_dividend,
+          'div_years': get_dividend_history,
           'P/E': get_pe,
           'P/FCF': get_pfcf,
-          'Div/FCF,Div/EPS': get_payout_ratios,
+          'Div/FCF': get_div_over_fcf,
+          'Div/EPS': get_div_over_eps,
           'bankruptcy(>2.6)': get_altman_zscore,
           'manipulator(<-2.22)': get_beneish_mscore,
           'ESG_risk': get_esg_risk,
@@ -359,8 +379,8 @@ def scrape(stock_names):
 
     pool = ThreadPool(len(stock_names))
     data = pool.map(scrape_stock, stock_names)
-
-    return reversed(sorted(data, key=lambda i: i['discount']))
+    data.sort(reverse=True, key=lambda i: i['discount'])
+    return data
 
 
 def printTable(myDict, colList=None):
@@ -377,15 +397,30 @@ def printTable(myDict, colList=None):
     for item in myList: print(formatStr.format(*item))
 
 
+def write_to_csv(data, fields):
+    with open('{}stocks.csv'.format(stocks_dir), mode='w') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fields.keys())
+        writer.writeheader()
+        for row in data:
+            writer.writerow(row)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("stocks", help="e.g. watchlist / aristocrats / buffet / AVGO/Broadcom,CSCO/Cisco...")
+    parser.add_argument("stocks", help="e.g. watchlist / aristocrats / buffet / all / AVGO/Broadcom,CSCO/Cisco...")
     args = parser.parse_args()
+    data = []
     if args.stocks == 'aristocrats':
-        printTable(scrape(aristocrats), fields)
+        data = scrape(aristocrats)
     elif args.stocks == 'watchlist':
-        printTable(scrape(watchlist), fields)
+        data = scrape(watchlist)
     elif args.stocks == 'buffet':
-        printTable(scrape(warren_buffet), fields)
+        data = scrape(warren_buffet)
+    elif args.stocks == 'all':
+        data = scrape(set(watchlist + warren_buffet + macrotrends_top_div + aristocrats))
     else:
-        printTable(scrape(args.stocks.split(',')), fields)
+        data = scrape(args.stocks.split(','))
+
+    printTable(data, fields)
+    write_to_csv(data, fields)
+
