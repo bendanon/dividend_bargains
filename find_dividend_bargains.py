@@ -8,6 +8,7 @@ import csv
 
 stocks_dir = 'stocks/'
 stock_file_format = stocks_dir + '{}.txt'
+page_cache = {}
 
 watchlist = ['IBM/IBM',
           'CSCO/Cisco',
@@ -83,6 +84,16 @@ gurufocus_url = 'https://www.gurufocus.com/term/'
 yahoo_url = 'https://finance.yahoo.com/quote/'
 
 
+def get_page(url):
+    page = page_cache.get(url)
+    if page is not None:
+        return page
+    else:
+        page = requests.get(url)
+        page_cache[url] = page
+    return page
+
+
 def mt_extract_value(page, marker):
     return page.text.split(marker)[1].split('gt;')[1].split('&')[0]
 
@@ -99,13 +110,8 @@ def mt_extract_value_table(page, marker, column, row):
     return page.text.split(marker)[1].split('</tr>')[row].split('</td>')[column - 1].split('>')[1]
 
 
-def gf_extract_headline_rank(page):
-    val = page.text.split(" (As of")[0].split(' ')[-1]
-    try:
-        float(val)
-    except ValueError:
-        val = 0
-    return val
+def gf_extract_headline_val(page):
+    return page.text.split(" (As of")[0].split(': ')[-1].strip(' %')
 
 
 def get_altman_zscore(stock):
@@ -119,8 +125,14 @@ def get_altman_zscore(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'zscore/' + get_symbol(stock) + '/')
-    return gf_extract_headline_rank(page)
+    page = get_page(gurufocus_url + 'zscore/' + get_symbol(stock) + '/')
+    val = gf_extract_headline_val(page)
+    try:
+        float(val)
+    except ValueError:
+        # zscore doesn't apply to financial companies...
+        val = 'N/A'
+    return val
 
 
 def get_beneish_mscore(stock):
@@ -134,8 +146,8 @@ def get_beneish_mscore(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'mscore/' + get_symbol(stock) + '/')
-    return gf_extract_headline_rank(page)
+    page = get_page(gurufocus_url + 'mscore/' + get_symbol(stock) + '/')
+    return gf_extract_headline_val(page)
 
 
 def get_piotroski_fscore(stock):
@@ -145,8 +157,8 @@ def get_piotroski_fscore(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'fscore/' + get_symbol(stock) + '/')
-    return gf_extract_headline_rank(page)
+    page = get_page(gurufocus_url + 'fscore/' + get_symbol(stock) + '/')
+    return gf_extract_headline_val(page)
 
 
 def get_profitability_rank(stock):
@@ -166,53 +178,87 @@ def get_profitability_rank(stock):
     :param stock:
     :return:
     """
-    page = requests.get(gurufocus_url + 'rank_profitability/' + get_symbol(stock) + '/')
-    return gf_extract_headline_rank(page)
+    page = get_page(gurufocus_url + 'rank_profitability/' + get_symbol(stock) + '/')
+    return gf_extract_headline_val(page)
 
-
-def get_dividend_growth(stock):
-    pass
 
 
 def get_pe(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
     return mt_extract_value(page, 'PE ratio as of')
 
 
 def get_mkt_cap(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/market-cap')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/market-cap')
     return mt_extract_value(page, 'market cap as of')
 
 
 def get_pfcf(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
     return mt_extract_value_table(page, 'Price to FCF Ratio', 4, 1)
 
 
 def get_discount(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/stock-price-history')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/stock-price-history')
     latest = mt_extract_value(page, 'The latest')
     average = mt_extract_value(page, 'The average')
-    return round((1 - float(latest) / float(average)) * 100, 3)
+    return '{}%'.format(round((1 - float(latest) / float(average)) * 100, 3))
 
 
 def get_dividend(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
-    return mt_extract_value(page, 'The current dividend yield').split('%')[0]
-
-
-def get_dividend_history(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
-    return page.text.split(' - ')[1].split(' ')[0]
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
+    return '{}%'.format(mt_extract_value(page, 'The current dividend yield').split('%')[0])
 
 
 def get_profit_margin(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/profit-margins')
-    return mt_extract_value(page, 'net profit margin as of').split('%')[0]
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/profit-margins')
+    return '{}%'.format(mt_extract_value(page, 'net profit margin as of').split('%')[0])
+
+
+def get_dividend_history(stock):
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
+    return page.text.split(' - ')[1].split(' ')[0]
+
+
+def get_dividend_5y_growth(stock):
+    page = get_page(gurufocus_url + 'dividend_growth_5y/' + get_symbol(stock) + '/')
+    return '{}%'.format(gf_extract_headline_val(page))
+
+
+def get_insider_ownership(stock):
+    page = get_page(gurufocus_url + 'InsiderOwnership/' + get_symbol(stock) + '/')
+    return gf_extract_headline_val(page)
+
+
+def get_short_percentage(stock):
+    page = get_page(gurufocus_url + 'InsiderOwnership/' + get_symbol(stock) + '/')
+    return '{}%'.format(page.text.split('Short Percentage of Float</a></font> is <strong>')[1].split('%')[0])
+
+
+def get_financial_strength(stock):
+    """
+    Based on 3 factors:
+    1. The debt burden that the company has as measured by its Interest Coverage (current year). The higher, the better.
+    2. Debt to revenue ratio. The lower, the better.
+    3. Altman Z-Score.
+    The maximum rank is 10. Companies with rank 7 or higher will be unlikely to fall into distressed situations.
+    Companies with rank of 3 or less are likely in financial distress.
+    :param stock:
+    :return:
+    """
+    page = get_page(gurufocus_url + 'rank_balancesheet/' + get_symbol(stock) + '/')
+    return gf_extract_headline_val(page)
+
+
+def get_predictability_rank(stock):
+    page = get_page(gurufocus_url + 'predictability_rank/' + get_symbol(stock) + '/')
+    stars = len(page.text.split('<i class="fa fa-star" aria-hidden="true"></i>')) - 1
+    half_stars = len(page.text.split('<i class="fa fa-star-half-o" aria-hidden="true"></i>')) - 1
+    return stars + 0.5*half_stars
 
 
 def get_avg_rev_growth(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/revenue')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/revenue')
     num_of_years = 5
     growth_sum = 0
     curr = 0
@@ -243,7 +289,7 @@ def get_symbol(stock):
 
 
 def get_ttm_payout(stock):
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/dividend-yield-history')
     return float(mt_extract_value(page, 'TTM dividend payout').split('$')[1])
 
 
@@ -253,7 +299,7 @@ def get_div_over_eps(stock):
     :param stock:
     :return:
     """
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/pe-ratio')
     eps = float(mt_extract_value_table(page, 'TTM Net EPS', 3, 2).split('$')[1])
     payout = get_ttm_payout(stock)
     payout_eps = round(100*(payout / eps))
@@ -266,7 +312,7 @@ def get_div_over_fcf(stock):
         :param stock:
         :return:
         """
-    page = requests.get(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
+    page = get_page(macrotrends_url + get_symbol(stock) + '/' + get_symbol(stock) + '/price-fcf')
     fcf = float(mt_extract_value_table(page, 'TTM FCF per Share', 3, 2).split('$')[1])
     payout = get_ttm_payout(stock)
     payout_fcf = round(100 * (payout / fcf))
@@ -279,17 +325,17 @@ def get_rsi(stock):
     :param stock:
     :return:
     """
-    page = requests.get('https://www.stockrsi.com/' + get_symbol(stock).lower() + '/')
+    page = get_page('https://www.stockrsi.com/' + get_symbol(stock).lower() + '/')
     return page.text.split('RSI:')[1].split('</td></tr>')[0].split('>')[-1]
 
 
 def get_expected_growth(stock):
-    page = requests.get(yahoo_url + get_symbol(stock) + '/analysis')
+    page = get_page(yahoo_url + get_symbol(stock) + '/analysis')
     return page.text.split('per annum')[1].split('%')[0].split('>')[3] + '%'
 
 
 def get_past_growth(stock):
-    page = requests.get(yahoo_url + get_symbol(stock) + '/analysis')
+    page = get_page(yahoo_url + get_symbol(stock) + '/analysis')
     return page.text.split('per annum')[2].split('%')[0].split('>')[3] + '%'
 
 
@@ -304,7 +350,7 @@ def get_esg_risk(stock):
     :param stock:
     :return:
     """
-    page = requests.get(yahoo_url + get_symbol(stock) + '/sustainability')
+    page = get_page(yahoo_url + get_symbol(stock) + '/sustainability')
     return page.text.split('Total ESG Risk score')[1].split('</div>')[1].split('>')[-1]
 
 
@@ -312,6 +358,7 @@ fields = {'stock': get_name,
           'discount': get_discount,
           'dividend': get_dividend,
           'div_years': get_dividend_history,
+          'div_growth': get_dividend_5y_growth,
           'P/E': get_pe,
           'P/FCF': get_pfcf,
           'Div/FCF': get_div_over_fcf,
@@ -319,10 +366,13 @@ fields = {'stock': get_name,
           'bankruptcy(>2.6)': get_altman_zscore,
           'manipulator(<-2.22)': get_beneish_mscore,
           'ESG_risk': get_esg_risk,
+          'short': get_short_percentage,
+          'insdr_owsp': get_insider_ownership,
           'profit_margin': get_profit_margin,
           'past_growth': get_past_growth,
           'exp_growth': get_expected_growth,
-          'fin_strength(>8)': get_piotroski_fscore,
+          'piotroski(>8)': get_piotroski_fscore,
+          'fin_strength(>7)': get_financial_strength,
           'profitability(>7)': get_profitability_rank}
 
 
@@ -362,7 +412,7 @@ def scrape_stock(stock):
             row[field] = fields[field](stock)
         except Exception:
             print('Failed to scrape field ' + field + 'for stock' + stock)
-            row[field] = 0
+            row[field] = "N/A"
 
     print('Finished {}'.format(stock))
     write_to_local_storage(stock, row)
@@ -379,7 +429,7 @@ def scrape(stock_names):
 
     pool = ThreadPool(len(stock_names))
     data = pool.map(scrape_stock, stock_names)
-    data.sort(reverse=True, key=lambda i: i['discount'])
+    data.sort(reverse=True, key=lambda i: float(i['discount'].split('%')[0]))
     return data
 
 
