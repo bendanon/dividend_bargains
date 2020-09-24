@@ -54,7 +54,15 @@ watchlist = ['IBM/IBM',
           'K/Kellogg',
           'GIS/GeneralMills',
           'CAH/CardinalHealthInc',
-          'BNS/BankofNovaScotia']
+          'BNS/BankofNovaScotia',
+          'AMGN/AmgenInc',
+          'TCPC/BlackRockTCP',
+          'PMT/PennyMacMortga',
+          'OCSL/OaktreeSpecLend',
+          'ABR/ArborRealty',
+          'UNM/UnumGroup',
+          'CCOI/CogentCommHold',
+          'GBX/Greenbrier']
 
 small_watchlist = ['BNS/BankofNovaScotia', 'IBM/IBM', 'STX/Seagate', 'INTC/Intel',
                     'CSCO/Cisco', 'PFE/Pfizer', 'GILD/Gilead', 'NTAP/NetApp',
