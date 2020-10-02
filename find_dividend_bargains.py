@@ -80,7 +80,7 @@ warren_buffet = ['OXY/OccidentalPetroleum', 'KHC/Kraft Heinz', 'GM/GeneralMotors
                  'PG/ProcternGamble', 'SYF/SynchronyFinancial', 'TRV/TravelersCompanies', 'GS/GoldmanSachs',
                  'BAC/BankofAmerica']
 
-macrotrends_top_div = ['CTL/CenturyLink', 'SPG/SimonProperty', 'CQP/CheniereEnergey', 'PPL/PPL', 'KEY/KeyCorp',
+macrotrends_top_div = ['LUMN/CenturyLink', 'SPG/SimonProperty', 'CQP/CheniereEnergey', 'PPL/PPL', 'KEY/KeyCorp',
                     'LYB/LyondellBasell', 'CFG/CitizensFinancial', 'RF/RegionsFinancial', 'PFG', 'FITB', 'EIX', 'OMC',
                     'COP', 'SO', 'MET', 'TFC', 'BXP', 'EQR', 'PNC', 'EXC', 'WELL', 'C', 'EVRG', 'ETR', 'PEG', 'AGR',
                     'NUE', 'AEP', 'HAS', 'SRE', 'NTRS', 'K', 'DTE', 'CVS', 'VIAC', 'EMN', 'HIG', 'PAYX', 'GIS', 'AMTD',
@@ -406,6 +406,11 @@ def write_to_local_storage(stock, row):
         f.flush()
 
 
+def sanitize(val):
+    if len(str(val)) > 10:
+        raise ValueError
+
+
 def scrape_stock(stock):
     print("Scraping {}...".format(stock))
 
@@ -417,7 +422,7 @@ def scrape_stock(stock):
     for field in fields.keys():
 
         try:
-            row[field] = fields[field](stock)
+            row[field] = sanitize(fields[field](stock))
         except Exception:
             print('Failed to scrape field ' + field + 'for stock' + stock)
             row[field] = "N/A"
@@ -426,6 +431,64 @@ def scrape_stock(stock):
     write_to_local_storage(stock, row)
 
     return row
+
+
+def to_float_or_neg_inf(stock_row, field):
+    val = float('-inf')
+    try:
+        val = float(stock_row[field].split('%')[0])
+    except Exception:
+        try:
+            val = float(stock_row[field])
+        except Exception:
+            pass
+    return val
+
+
+seen_stocks = set()
+def stock_filter(stock_row):
+
+    if stock_row['stock'] in seen_stocks:
+        return False
+    seen_stocks.add(stock_row['stock'])
+
+    if to_float_or_neg_inf(stock_row, 'discount') < 0:
+        print('Removing {} because its expansive'.format(stock_row['stock']))
+        return False
+
+    if to_float_or_neg_inf(stock_row, 'div_growth') < 0:
+        print('Removing {} because of dividend shrink'.format(stock_row['stock']))
+        return False
+
+    """
+    if to_float_or_neg_inf(stock_row, 'manipulator(<-2.22)') > -2.22:
+        print('Removing {} because it seems to manipulate earnings'.format(stock_row['stock']))
+        return False
+    """
+
+    if to_float_or_neg_inf(stock_row, 'Div/FCF') > 70 or to_float_or_neg_inf(stock_row, 'Div/FCF') < 0:
+        print('Removing {} because its Div/FCF is too high or negative'.format(stock_row['stock']))
+        return False
+
+    if to_float_or_neg_inf(stock_row, 'exp_growth') < 0:
+        print('Removing {} because its expected growth is negative'.format(stock_row['stock']))
+        return False
+
+    if to_float_or_neg_inf(stock_row, 'fin_strength(>7)') < 4:
+        print('Removing {} because its expected growth is negative'.format(stock_row['stock']))
+        return False
+
+    val = to_float_or_neg_inf(stock_row, 'dividend')
+    if val < 2.5:
+        print('Removing {} because its dividend is {}'.format(stock_row['stock'], val))
+        return False
+
+    val = to_float_or_neg_inf(stock_row, 'bankruptcy(>2.6)')
+    if val != float('-inf') and val < 2:
+        print('Removing {} because its bankruptcy risk is {}'.format(stock_row['stock'], val))
+        return False
+
+    return True
 
 
 def scrape(stock_names):
@@ -437,7 +500,15 @@ def scrape(stock_names):
 
     pool = ThreadPool(len(stock_names))
     data = pool.map(scrape_stock, stock_names)
-    data.sort(reverse=True, key=lambda i: float(i['discount'].split('%')[0]))
+    data = list(filter(stock_filter, data))
+    data.sort(reverse=True, key=lambda i: to_float_or_neg_inf(i, 'discount')*10 +
+                                          to_float_or_neg_inf(i, 'dividend')*15 +
+                                          to_float_or_neg_inf(i, 'div_years')*2 +
+                                          to_float_or_neg_inf(i, 'div_growth')*5 +
+                                          to_float_or_neg_inf(i, 'exp_growth')*10 +
+                                          to_float_or_neg_inf(i, 'fin_strength(>7)')*10 -
+                                          to_float_or_neg_inf(i, 'Div/FCF')*10 -
+                                          to_float_or_neg_inf(i, 'ESG_risk')*10)
     return data
 
 
