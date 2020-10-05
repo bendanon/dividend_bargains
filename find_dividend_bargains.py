@@ -83,7 +83,7 @@ warren_buffet = ['OXY/OccidentalPetroleum', 'KHC/Kraft Heinz', 'GM/GeneralMotors
 macrotrends_top_div = ['LUMN/CenturyLink', 'SPG/SimonProperty', 'CQP/CheniereEnergey', 'PPL/PPL', 'KEY/KeyCorp',
                     'LYB/LyondellBasell', 'CFG/CitizensFinancial', 'RF/RegionsFinancial', 'PFG', 'FITB', 'EIX', 'OMC',
                     'COP', 'SO', 'MET', 'TFC', 'BXP', 'EQR', 'PNC', 'EXC', 'WELL', 'C', 'EVRG', 'ETR', 'PEG', 'AGR',
-                    'NUE', 'AEP', 'HAS', 'SRE', 'NTRS', 'K', 'DTE', 'CVS', 'VIAC', 'EMN', 'HIG', 'PAYX', 'GIS', 'AMTD',
+                    'NUE', 'AEP', 'HAS', 'SRE', 'NTRS', 'K', 'DTE', 'CVS', 'EMN', 'HIG', 'PAYX', 'GIS', 'AMTD',
                     'DFS', 'STT', 'ADM', 'SJM', 'VIACA', 'CPB', 'MXIM', 'MRK', 'LNT', 'WHR', 'AMP', 'TSN', 'MS', 'CAT',
                     'CMS', 'AMGN', 'WEC', 'BLK', 'AEE', 'LMT', 'DRE', 'CMI', 'IFF', 'XEL', 'ATO', 'CAG', 'ALL']
 
@@ -363,6 +363,7 @@ def get_esg_risk(stock):
 
 
 fields = {'stock': get_name,
+          'mkt_cap': get_mkt_cap,
           'discount': get_discount,
           'dividend': get_dividend,
           'div_years': get_dividend_history,
@@ -409,6 +410,7 @@ def write_to_local_storage(stock, row):
 def sanitize(val):
     if len(str(val)) > 10:
         raise ValueError
+    return val
 
 
 def scrape_stock(stock):
@@ -422,7 +424,11 @@ def scrape_stock(stock):
     for field in fields.keys():
 
         try:
-            row[field] = sanitize(fields[field](stock))
+            raw = fields[field](stock)
+            if field != 'stock':
+                row[field] = sanitize(raw)
+            else:
+                row[field] = raw
         except Exception:
             print('Failed to scrape field ' + field + 'for stock' + stock)
             row[field] = "N/A"
@@ -483,10 +489,12 @@ def stock_filter(stock_row):
         print('Removing {} because its dividend is {}'.format(stock_row['stock'], val))
         return False
 
+    """
     val = to_float_or_neg_inf(stock_row, 'bankruptcy(>2.6)')
     if val != float('-inf') and val < 2:
         print('Removing {} because its bankruptcy risk is {}'.format(stock_row['stock'], val))
         return False
+    """
 
     return True
 
