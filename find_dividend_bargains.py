@@ -480,8 +480,9 @@ def stock_filter(stock_row):
         print('Removing {} because its expected growth is negative'.format(stock_row['stock']))
         return False
 
-    if to_float_or_neg_inf(stock_row, 'fin_strength(>7)') < 4:
-        print('Removing {} because its expected growth is negative'.format(stock_row['stock']))
+    val = to_float_or_neg_inf(stock_row, 'fin_strength(>7)')
+    if val < 4:
+        print('Removing {} because its financial strength is {}'.format(stock_row['stock'], val))
         return False
 
     val = to_float_or_neg_inf(stock_row, 'dividend')
