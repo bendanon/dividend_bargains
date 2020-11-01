@@ -455,13 +455,16 @@ def to_float_or_neg_inf(stock_row, field):
             pass
     return val
 
-
+filter_results = True
 seen_stocks = set()
 def stock_filter(stock_row):
 
     if stock_row['stock'] in seen_stocks:
         return False
     seen_stocks.add(stock_row['stock'])
+
+    if not filter_results:
+        return True
 
     if to_float_or_neg_inf(stock_row, 'discount') < 0:
         print('Removing {} because its expansive'.format(stock_row['stock']))
@@ -551,8 +554,10 @@ def write_to_csv(data, fields):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("stocks", help="e.g. watchlist / aristocrats / buffet / all / AVGO/Broadcom,CSCO/Cisco...")
+    parser.add_argument('--nofilter', action='store_false')
     args = parser.parse_args()
     data = []
+    filter_results = args.nofilter
     if args.stocks == 'aristocrats':
         data = scrape(aristocrats)
     elif args.stocks == 'watchlist':
