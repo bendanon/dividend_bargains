@@ -6,6 +6,19 @@ import os
 import time
 import csv
 
+"""
+TODO:
+    1. Morningstar - competitive advantage
+    2. Credit Rating > -BBB
+    3. Total Debt / Shareholder equity < 0.5 (https://en.wikipedia.org/wiki/Leverage_(finance))
+    4. Dividend Stability > 60 (SimplySafeDividends)
+    5. Chowder number > 11 (Payout ratio + 5y dividednd growth rate)
+    6. Buyback rate
+    7. ROE > 15%
+    8. Beta > 1.0 (low volatility)
+    9.Collect more stocks on Dripinvesting, morning.co
+"""
+
 stocks_dir = 'stocks/'
 stock_file_format = stocks_dir + '{}.txt'
 page_cache = {}
